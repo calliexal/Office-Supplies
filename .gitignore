@@ -1,0 +1,26 @@
+# dependencies & build output
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# environment: real values stay local, only the template is committed
+.env
+.env.*
+!.env.example
+
+# dev accounts with working passwords for the hosted Supabase project - never commit
+supabase/dev-users.sql
+
+# Supabase CLI local state
+supabase/.temp
+supabase/.branches
+
+# logs & OS/editor noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea
