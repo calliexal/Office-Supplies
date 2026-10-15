@@ -1,69 +1,135 @@
-# Office Supplies Request (Pengajuan ATK) — Frontend
+# Office Supplies Request
 
-Employee portal for requesting office supplies, built from the Figma file
-`YZZ30HvXeOVEqnnGCvbprq` (Log In, Dashboard, Supplies Requests, Requests History + modals).
+A full-stack web app for requesting office supplies inside a company. Employees browse the catalogue and submit requests; the General Affair team reviews them in an approval queue; both sides get real-time notifications at every step.
 
-**Stack:** Vite 5 · React 18 · TypeScript (strict) · Tailwind CSS 3 · React Router 6 · TanStack Query 5 · zod · Vitest + Testing Library.
+![Employee dashboard](docs/screenshots/dashboard.png)
 
-## Run
+**Tech stack:** React 18 · TypeScript (strict) · Vite · Tailwind CSS · TanStack Query · React Router · Zod · Supabase (PostgreSQL, Row Level Security, RPC, Auth, Realtime) · Vitest · PGlite
+
+## Features
+
+**For employees**
+- Browse the supplies catalogue with live stock, search and in-stock filter
+- Build a request with several items at once; stock is reserved the moment it is submitted
+- Track every request in a filterable history (status, date range, search)
+- Get notified when a request is approved, rejected (with the reason) or ready for pickup
+
+**For General Affair (admin)**
+- Approval queue for every employee's requests, oldest first, with live counters
+- Approve, reject with a required reason (stock is returned automatically), mark ready for pickup, mark handed over
+- Notified instantly when a new request comes in; pending count shown in the sidebar and on the dashboard
+
+| Catalogue & request summary | Approval queue |
+| --- | --- |
+| ![Supplies catalogue](docs/screenshots/supplies.png) | ![Approval queue](docs/screenshots/approvals.png) |
+| **Reviewing a request** | **Real-time notifications** |
+| ![Review dialog](docs/screenshots/review.png) | ![Notifications](docs/screenshots/notifications.png) |
+| **Request history** | **Login** |
+| ![Request history](docs/screenshots/history.png) | ![Login page](docs/screenshots/login.png) |
+
+<p align="center"><img src="docs/screenshots/mobile.png" alt="Mobile layout" width="280" /></p>
+
+## Architecture
+
+There is no custom API server. The React app talks to Supabase directly, and every business rule lives in PostgreSQL, where it can't be bypassed from the browser.
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI[React + TanStack Query] --> API[AtkApi interface]
+    API --> SA[Supabase adapter]
+    API -.-> MA[Mock adapter<br/>demo mode]
+  end
+  SA -->|reads| RLS[(Tables + views<br/>Row Level Security)]
+  SA -->|writes| RPC[SECURITY DEFINER<br/>RPC functions]
+  RPC --> RLS
+  RLS -->|triggers| N[(notifications)]
+  N -->|Realtime| SA
+```
+
+```mermaid
+sequenceDiagram
+  actor E as Employee
+  participant DB as PostgreSQL
+  actor GA as General Affair
+  E->>DB: create_supply_request(items, idempotency key)
+  DB->>DB: lock stock rows, check, reserve, number REQ-YYYYMMDD-NNN
+  DB-->>GA: notification "New request" (Realtime)
+  GA->>DB: update_supply_request_status(approved / rejected + reason)
+  DB->>DB: check role and transition, return stock if rejected
+  DB-->>E: notification "Approved" / "Rejected: reason" (Realtime)
+```
+
+Request lifecycle:
+
+```
+pending ──approve──▶ approved ──prepare──▶ ready_for_pickup ──hand over──▶ finished
+   └──────reject (reason required, stock returned)──────▶ rejected
+```
+
+## Engineering highlights
+
+- **Security in the database, not the UI.** The browser only holds the publishable key. Row Level Security limits every read to the caller's own data (admins see everything), and all writes go through `SECURITY DEFINER` functions that validate input and check the role. An employee calling the API directly still can't approve a request, edit stock or read someone else's history.
+- **No overselling under concurrency.** Submitting a request locks the stock rows in a fixed order (no deadlocks), checks every item, and reserves stock in one transaction. A second reviewer acting on a stale screen gets a `409` instead of a double decision.
+- **Idempotent submissions.** Each cart carries an idempotency key, so double clicks and network retries never create duplicate requests. Reusing a key with a different cart is rejected.
+- **Notifications that can't be faked.** Rows are written only by database triggers, read only by their recipient, and pushed live with Supabase Realtime (with a 30-second polling fallback).
+- **One API interface, swappable backends.** Screens depend on a single typed `AtkApi`. Supabase, a REST client and an in-memory mock all implement it, so the whole app runs as a demo without any backend.
+- **Validated at the boundary.** Every response is parsed with Zod; if the backend drifts from the contract, it fails loudly in one place instead of rendering `undefined`.
+- **Accessible, responsive UI** built from a Figma design: native `<dialog>` modals with focus handling, keyboard-friendly controls, layouts from 375px to desktop, and URL-based filters that survive refresh.
+
+## Testing
+
+| Command | What it covers |
+| --- | --- |
+| `npm test` | 36 Vitest tests: cart rules, API contract, role rules, notifications, date formatting, error mapping |
+| `npm run test:db` | 28 database tests: the real migrations run on in-memory PostgreSQL (PGlite) to check RLS isolation, anonymous lockout, stock reservation and rollback, idempotency, the status lifecycle, the approval race and notifications |
+| `npm run typecheck` | TypeScript in strict mode |
+
+## Run it locally
+
+Requires Node.js 18+.
 
 ```bash
 npm install
-npm run assets:fetch     # once: downloads logo/illustration/icons from Figma into src/assets/figma
-cp .env.example .env     # fill in Supabase URL + publishable key, or VITE_USE_MOCK=true for demo data
-npm run dev              # http://localhost:5173
+cp .env.example .env
 ```
 
-Demo login (mock mode): `dinda@example.com` / `Atk#2026`.
+**Demo mode (no backend).** Set `VITE_USE_MOCK=true` in `.env`, then `npm run dev` and open http://localhost:5173.
 
-| Script | |
-| --- | --- |
-| `npm run typecheck` | `tsc` strict |
-| `npm test` | Vitest (cart rules, mock API contract, date formatting, Supabase error mapping) |
-| `npm run test:db` | Migration + seed on PGlite: RLS, stock, idempotency, lifecycle (18 tests) |
-| `npm run build` | Type-check + production build |
+| Role | Email | Password |
+| --- | --- | --- |
+| Employee | `dinda@example.com` | `Atk#2026` |
+| Employee | `budi@example.com` | `Atk#2026` |
+| General Affair | `admin@example.com` | `Atk#2026` |
 
-## Backend (Supabase)
+These accounts exist only in demo mode.
 
-The backend is Supabase (Postgres + RLS + RPC). Setup, access matrix, accounts and errors:
-[`supabase/README.md`](./supabase/README.md). In short:
+**With Supabase.**
+1. Create a project at [supabase.com](https://supabase.com).
+2. In the SQL Editor, run the whole of `supabase/setup.sql` once.
+3. Under Authentication, turn off public sign-up and add users. Promote a General Affair user:
+   `update public.profiles set role = 'admin' where email = '...';`
+4. In `.env`, set `VITE_USE_MOCK=false`, `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (never the secret key).
 
-1. Dashboard → SQL Editor → run `supabase/setup.sql` once.
-2. Authentication → turn off public sign-up, then *Add user* for each employee.
-3. `.env`: `VITE_USE_MOCK=false` + `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+More detail: [`supabase/README.md`](supabase/README.md) (schema, access matrix, error codes) and [`API_CONTRACT.md`](API_CONTRACT.md).
 
-Set `VITE_USE_MOCK=true` to run the UI without any backend.
-
-## Structure
+## Project structure
 
 ```
-supabase/         migrations, seed, setup.sql, DB tests (see supabase/README.md)
+supabase/
+  migrations/     schema, RLS policies, RPC functions, notification triggers
+  tests/          database tests (PGlite)
+  setup.sql       all migrations + seed, for one-shot setup
 src/
-  api/            schemas (zod = types), Supabase + mock adapters, React Query hooks
-  api/supabase/   supabase-js client (remember-me storage), adapter, error mapping
-  auth/           AuthProvider (session restore + 401 handling), route guards
-  components/     layout (sidebar, header, logout) and ui primitives (Dialog, Button, StatusBadge…)
-  features/       auth · dashboard · supplies (catalogue + cart) · requests (history + detail)
-  lib/            formatting (Asia/Jakarta), cn
+  api/            Zod schemas, Supabase / mock / HTTP adapters, React Query hooks
+  auth/           session handling, route guards (employee / admin)
+  components/     layout (sidebar, header, notifications) and UI primitives
+  features/       auth · dashboard · supplies · requests · approvals
+  lib/            date formatting (Asia/Jakarta), helpers
 ```
 
-## Key decisions
+## Possible next steps
 
-- **One `AtkApi` interface, two adapters.** Screens never know whether they talk to the mock or the
-  real backend; switching is an env flag and the unused adapter is removed from the bundle.
-- **zod at the boundary.** Contract drift fails loudly in one place instead of rendering `undefined`.
-- **Security lives in the database.** The browser only holds the publishable key; RLS limits every
-  read to the caller, and stock/status can only change through validated `SECURITY DEFINER` RPCs.
-- **Idempotent submit.** One idempotency key per cart; double clicks and retries can't create
-  duplicate requests, and a changed cart gets a new key. Stock is re-synced into the cart after a `409`.
-- **Native `<dialog>`** for modals (focus trap, Esc, inert background for free) and **native
-  `<select>`** for the filter pills (keyboard + mobile pickers).
-- **History filters live in the URL** (`?status=pending&date=last7`) — refresh-safe and shareable.
-- **No profile photos** (per requirement) — avatars show initials.
-- Route-level code splitting; `keepPreviousData` to avoid layout shift while searching.
-
-## Not in this iteration
-
-- "Pengaturan" (Settings) only exists as a grey wireframe in Figma.
-- Messages / notifications panels have no design yet — the header shows unread dots only.
-- "Forgot Password?" opens an email to General Affair until a reset flow is designed.
+- Admin screen for managing the catalogue and uploading product photos
+- Email notifications alongside in-app ones
+- Password reset flow and audit log
