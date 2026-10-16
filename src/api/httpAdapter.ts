@@ -51,6 +51,13 @@ export const createHttpApi = (): AtkApi => ({
         headers: { 'Idempotency-Key': idempotencyKey },
         schema: requestDetailSchema,
       }),
+    confirmReceived: (id) =>
+      request(`/requests/${encodeURIComponent(id)}/received`, { method: 'POST', schema: requestDetailSchema }),
+  },
+  deliveries: {
+    list: (query, opts) => request('/deliveries', { query: { ...query }, schema: adminRequestPageSchema, signal: opts?.signal }),
+    markPickedUp: (id) =>
+      request(`/deliveries/${encodeURIComponent(id)}/picked-up`, { method: 'POST', schema: requestDetailSchema }),
   },
   admin: {
     summary: (opts) => request('/admin/requests/summary', { schema: adminRequestSummarySchema, signal: opts?.signal }),

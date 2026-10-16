@@ -35,6 +35,7 @@ type RequestDetailDialogProps = {
 
 export const RequestDetailDialog = ({ requestId, onClose, showRequester = false, renderActions, busy = false }: RequestDetailDialogProps) => {
   const { data, isPending, isError, error, refetch } = useRequestDetail(requestId);
+  const actions = data && renderActions ? renderActions(data) : null;
 
   return (
     <Dialog open={requestId !== null} onClose={onClose} dismissible={!busy} className="max-w-[851px] rounded-2xl">
@@ -77,6 +78,9 @@ export const RequestDetailDialog = ({ requestId, onClose, showRequester = false,
                       <Row label="Last Updated" value={`${formatDate(data.reviewedAt)}, ${formatTime(data.reviewedAt)}`} />
                     )}
                     {data.reviewedBy && <Row label="Reviewed By" value={data.reviewedBy} />}
+                    {data.pickedUpBy && <Row label="Delivered By" value={data.pickedUpBy} />}
+                    {data.pickedUpAt && <Row label="Picked Up" value={`${formatDate(data.pickedUpAt)}, ${formatTime(data.pickedUpAt)}`} />}
+                    {data.receivedAt && <Row label="Received" value={`${formatDate(data.receivedAt)}, ${formatTime(data.receivedAt)}`} />}
                     {data.rejectionReason && (
                       <Row label="Rejection Reason" value={<span className="whitespace-pre-line break-words">{data.rejectionReason}</span>} />
                     )}
@@ -109,9 +113,9 @@ export const RequestDetailDialog = ({ requestId, onClose, showRequester = false,
                 </Section>
               </>
             )}
-            {data && renderActions?.(data)}
+            {actions}
             <div className="mt-10 flex justify-center">
-              <Button variant={renderActions ? 'outline' : 'danger'} className="w-full max-w-[197px]" onClick={onClose} disabled={busy}>
+              <Button variant={actions ? 'outline' : 'danger'} className="w-full max-w-[197px]" onClick={onClose} disabled={busy}>
                 Close
               </Button>
             </div>

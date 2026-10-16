@@ -14,25 +14,33 @@ const FORWARD: Record<ForwardStatus, { button: string; title: string; confirm: s
     title: 'Approve this request?',
     confirm: 'Yes, Approve',
     done: 'approved',
-    describe: (d) => `${firstNameOf(d.requester.name)} will see it as Approved. The items stay reserved until they are picked up.`,
+    describe: (d) => `${firstNameOf(d.requester.name)} will see it as Approved. The items stay reserved until they are delivered.`,
   },
   ready_for_pickup: {
     button: 'Mark Ready for Pickup',
     title: 'Items ready for pickup?',
     confirm: 'Yes, Ready',
     done: 'marked ready for pickup',
-    describe: (d) => `${firstNameOf(d.requester.name)} will be told to collect the items at ${d.pickupLocation}.`,
+    describe: (d) =>
+      `Office logistics will be notified to pick the items up at ${d.pickupLocation} and deliver them to ${firstNameOf(d.requester.name)}.`,
   },
   finished: {
-    button: 'Mark as Handed Over',
-    title: 'Items handed over?',
-    confirm: 'Yes, Finished',
-    done: 'finished',
-    describe: (d) => `Confirm that ${firstNameOf(d.requester.name)} has collected every item. This closes the request.`,
+    button: 'Close as Received',
+    title: 'Close this delivery?',
+    confirm: 'Yes, Close',
+    done: 'closed as received',
+    describe: (d) =>
+      `Use this only if ${firstNameOf(d.requester.name)} confirmed in person that the items arrived but didn't tap "Confirm Received".`,
   },
 };
 
-const ICONS: Record<ForwardStatus, typeof CheckCircle2> = { approved: CheckCircle2, ready_for_pickup: Truck, finished: PackageCheck };
+const ICONS: Record<ForwardStatus, typeof CheckCircle2> = { approved: CheckCircle2, ready_for_pickup: PackageCheck, finished: CheckCircle2 };
+
+const WAITING_COPY: Partial<Record<RequestDetail['status'], (d: RequestDetail) => string>> = {
+  ready_for_pickup: () => 'Waiting for office logistics to pick the items up.',
+  in_delivery: (d) =>
+    `${d.pickedUpBy ?? 'Office logistics'} is delivering the items. ${firstNameOf(d.requester.name)} will confirm when they arrive.`,
+};
 
 type Step = { kind: 'idle' } | { kind: 'confirm'; status: ForwardStatus } | { kind: 'reject' };
 
@@ -53,10 +61,12 @@ export const ReviewActions = ({ detail, onDone, onBusyChange }: ReviewActionsPro
   useEffect(() => setStep({ kind: 'idle' }), [detail.status]);
 
   const next = NEXT_STATUSES[detail.status];
+  const waiting = WAITING_COPY[detail.status]?.(detail);
   if (next.length === 0) {
     return (
-      <p className="mt-8 rounded-lg bg-white px-4 py-3 text-center text-sm text-ink-500">
-        This request is {detail.status === 'rejected' ? 'rejected' : 'finished'} — no further action needed.
+      <p className="mt-8 flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-center text-sm text-ink-500">
+        {waiting && <Truck className="size-4 shrink-0 text-navy" aria-hidden />}
+        {waiting ?? `This request is ${detail.status === 'rejected' ? 'rejected' : 'finished'} — no further action needed.`}
       </p>
     );
   }
@@ -96,6 +106,13 @@ export const ReviewActions = ({ detail, onDone, onBusyChange }: ReviewActionsPro
         </p>
       )}
 
+      {step.kind === 'idle' && waiting && (
+        <p className="mb-4 flex items-start gap-2 text-sm text-ink-500">
+          <Truck className="mt-0.5 size-4 shrink-0 text-navy" aria-hidden />
+          {waiting}
+        </p>
+      )}
+
       {step.kind === 'idle' && (
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
           {next.includes('rejected') && (
@@ -109,7 +126,11 @@ export const ReviewActions = ({ detail, onDone, onBusyChange }: ReviewActionsPro
             .map((status) => {
               const Icon = ICONS[status];
               return (
-                <Button key={status} variant={status === 'approved' ? 'primary' : 'navy'} onClick={() => setStep({ kind: 'confirm', status })}>
+                <Button
+                  key={status}
+                  variant={status === 'approved' ? 'primary' : status === 'finished' ? 'outline' : 'navy'}
+                  onClick={() => setStep({ kind: 'confirm', status })}
+                >
                   <Icon className="size-5" aria-hidden />
                   {FORWARD[status].button}
                 </Button>

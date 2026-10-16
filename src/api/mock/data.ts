@@ -8,7 +8,9 @@ const a4Paper = '/mock/a4-paper.png';
 export const MOCK_PASSWORD = 'Atk#2026';
 export const PICKUP_LOCATION = 'General Affair Office';
 
-export type MockRequest = RequestDetail & { requesterId: string };
+export type MockRequest = RequestDetail & { requesterId: string; pickedUpById: string | null };
+
+export const LOGISTICS_USER_ID = 'usr_logi';
 
 export const mockUsers: User[] = [
   {
@@ -38,6 +40,16 @@ export const mockUsers: User[] = [
     position: 'GA Officer',
     department: 'General Affair',
     role: 'admin',
+    unreadNotifications: 0,
+    unreadMessages: 0,
+  },
+  {
+    id: LOGISTICS_USER_ID,
+    name: 'Andi Pratama',
+    email: 'logistics@example.com',
+    position: 'Office Logistics',
+    department: 'Office Logistics',
+    role: 'logistics',
     unreadNotifications: 0,
     unreadMessages: 0,
   },
@@ -82,6 +94,8 @@ const detail = (
 ): MockRequest => {
   const requester = userById(requesterId);
   const reviewed = status !== 'pending';
+  const delivered = status === 'in_delivery' || status === 'finished';
+  const hoursLater = (hours: number) => new Date(Date.parse(at(day)) + hours * 3_600_000).toISOString();
   const suffix = `202607${String(day).padStart(2, '0')}`;
   return {
     id: `req_${suffix}${String(seq).padStart(3, '0')}`,
@@ -96,8 +110,12 @@ const detail = (
     items,
     rejectionReason,
     note,
-    reviewedAt: reviewed ? new Date(Date.parse(at(day)) + 3_600_000).toISOString() : null,
+    reviewedAt: reviewed ? hoursLater(1) : null,
     reviewedBy: reviewed ? 'GA Admin' : null,
+    pickedUpById: delivered ? LOGISTICS_USER_ID : null,
+    pickedUpBy: delivered ? userById(LOGISTICS_USER_ID).name : null,
+    pickedUpAt: delivered ? hoursLater(3) : null,
+    receivedAt: status === 'finished' ? hoursLater(4) : null,
   };
 };
 
@@ -108,4 +126,5 @@ export const createMockRequests = (): MockRequest[] => [
   detail(23, 1, 'usr_dinda', 'pending', [line('sup_4', 'A4 75gsm', 2)]),
   detail(22, 1, 'usr_dinda', 'rejected', [line('sup_2', 'Black Marker', 1), line('sup_1', 'Gel Pen', 1), line('sup_3', 'Standard Pen', 1), line('sup_4', 'A4 75gsm', 1)], 'Black Marker is out of stock.'),
   detail(21, 1, 'usr_dinda', 'finished', [line('sup_1', 'Gel Pen', 2), line('sup_3', 'Standard Pen', 1), line('sup_4', 'A4 75gsm', 1)]),
+  detail(20, 1, 'usr_budi', 'in_delivery', [line('sup_5', 'Blue Gel Pen', 4)]),
 ];

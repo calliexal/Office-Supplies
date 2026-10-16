@@ -31,9 +31,10 @@ const SUPPLY_COLUMNS = 'id, name, stock, unit, image_url';
 const REQUEST_LIST_COLUMNS = 'id, code, created_at, item_count, total_quantity, pickup_location, status';
 const ADMIN_REQUEST_LIST_COLUMNS = `${REQUEST_LIST_COLUMNS}, requester_name, requester_department`;
 const REQUEST_DETAIL_COLUMNS =
-  'id, code, created_at, status, pickup_location, rejection_reason, note, decided_at, ' +
+  'id, code, created_at, status, pickup_location, rejection_reason, note, decided_at, picked_up_at, received_at, ' +
   'requester:profiles!supply_requests_requester_id_fkey(name, department), ' +
   'reviewer:profiles!supply_requests_decided_by_fkey(name), ' +
+  'courier:profiles!supply_requests_picked_up_by_fkey(name), ' +
   'items:supply_request_items(supply_id, name, quantity)';
 
 const NOTIFICATION_COLUMNS = 'id, kind, title, body, request_id, created_at, read_at';
@@ -138,10 +139,11 @@ const adminSummaryFromRow = z
     pending: z.number(),
     approved: z.number(),
     ready_for_pickup: z.number(),
+    in_delivery: z.number().default(0),
     rejected: z.number(),
     finished: z.number(),
   })
-  .transform(({ ready_for_pickup, ...rest }) => ({ ...rest, readyForPickup: ready_for_pickup }))
+  .transform(({ ready_for_pickup, in_delivery, ...rest }) => ({ ...rest, readyForPickup: ready_for_pickup, inDelivery: in_delivery }))
   .pipe(adminRequestSummarySchema);
 
 const requestDetailFromRow = z
@@ -154,8 +156,11 @@ const requestDetailFromRow = z
     rejection_reason: z.string().nullable(),
     note: z.string().nullable(),
     decided_at: z.string().nullable(),
+    picked_up_at: z.string().nullable(),
+    received_at: z.string().nullable(),
     requester: z.object({ name: z.string(), department: z.string() }),
     reviewer: z.object({ name: z.string() }).nullable(),
+    courier: z.object({ name: z.string() }).nullable(),
     items: z.array(z.object({ supply_id: z.string(), name: z.string(), quantity: z.number() })),
   })
   .transform((row) => {
@@ -176,6 +181,9 @@ const requestDetailFromRow = z
       note: row.note,
       reviewedAt: row.decided_at,
       reviewedBy: row.reviewer?.name ?? null,
+      pickedUpBy: row.courier?.name ?? null,
+      pickedUpAt: row.picked_up_at,
+      receivedAt: row.received_at,
     };
   })
   .pipe(requestDetailSchema);
@@ -370,6 +378,32 @@ export const createSupabaseApi = (): AtkApi => {
           p_note: note?.trim() || null,
         });
         const id = parseResponse(z.string().uuid(), dataOf(result), 'created request id');
+        return getRequest(id);
+      },
+
+      confirmReceived: async (id) => {
+        await requireUserId();
+        dataOf(await sb().rpc('confirm_request_received', { p_request_id: id }));
+        return getRequest(id);
+      },
+    },
+
+    deliveries: {
+      list: async (query, opts) => {
+        await requireUserId();
+        const result = await listRequestRows(
+          ADMIN_REQUEST_LIST_COLUMNS,
+          query,
+          ['code', 'item_names', 'requester_name'],
+          null,
+          opts?.signal,
+        );
+        return toPage(result.rows, adminRequestListItemFromRow, result.meta, opts?.signal, 'delivery list');
+      },
+
+      markPickedUp: async (id) => {
+        await requireUserId();
+        dataOf(await sb().rpc('mark_request_picked_up', { p_request_id: id }));
         return getRequest(id);
       },
     },

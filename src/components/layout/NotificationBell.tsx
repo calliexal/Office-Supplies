@@ -1,8 +1,8 @@
-import { Bell, CheckCircle2, Inbox, Truck, XCircle, type LucideIcon } from 'lucide-react';
+import { Bell, CheckCircle2, Inbox, PackageCheck, Truck, XCircle, type LucideIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { AppNotification, NotificationKind } from '@/api';
 import { useMarkNotificationsRead, useNotifications } from '@/api/queries';
-import { useIsAdmin } from '@/auth/RequireAuth';
+import { useIsAdmin, useIsLogistics } from '@/auth/RequireAuth';
 import { Popover } from '@/components/ui/Popover';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
@@ -12,13 +12,17 @@ const KIND_STYLE: Record<NotificationKind, { icon: LucideIcon; tone: string }> =
   request_submitted: { icon: Inbox, tone: 'bg-brand-soft text-brand' },
   request_approved: { icon: CheckCircle2, tone: 'bg-success-soft text-success' },
   request_rejected: { icon: XCircle, tone: 'bg-danger-soft text-danger' },
-  request_ready: { icon: Truck, tone: 'bg-violet-soft text-violet' },
+  request_ready: { icon: PackageCheck, tone: 'bg-violet-soft text-violet' },
+  request_in_delivery: { icon: Truck, tone: 'bg-sky text-navy' },
+  delivery_ready: { icon: Truck, tone: 'bg-brand-soft text-brand' },
 };
 
 const destinationFor = (notification: AppNotification, isAdmin: boolean) => {
   if (!notification.requestId) return null;
   const id = encodeURIComponent(notification.requestId);
-  return notification.kind === 'request_submitted' && isAdmin ? `/approvals?status=all&review=${id}` : `/history?request=${id}`;
+  if (notification.kind === 'request_submitted' && isAdmin) return `/approvals?status=all&review=${id}`;
+  if (notification.kind === 'delivery_ready') return `/deliveries?status=all&review=${id}`;
+  return `/history?request=${id}`;
 };
 
 export const NotificationBell = () => {
@@ -26,6 +30,7 @@ export const NotificationBell = () => {
   const markRead = useMarkNotificationsRead();
   const navigate = useNavigate();
   const isAdmin = useIsAdmin();
+  const isLogistics = useIsLogistics();
   const unread = feed.data?.unread ?? 0;
   const items = feed.data?.data ?? [];
 
@@ -97,7 +102,11 @@ export const NotificationBell = () => {
               <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                 <Bell className="size-7 text-ink-400" aria-hidden />
                 <p className="text-sm text-ink-500">
-                  {isAdmin ? 'New requests from employees will show up here.' : "You'll be notified here when General Affair reviews your requests."}
+                  {isAdmin
+                    ? 'New requests from employees will show up here.'
+                    : isLogistics
+                      ? 'Requests that are ready to deliver will show up here.'
+                      : "You'll be notified here when General Affair reviews your requests."}
                 </p>
               </div>
             )}

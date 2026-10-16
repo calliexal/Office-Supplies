@@ -18,6 +18,18 @@ export const RequireAdmin = () => {
   return <Outlet />;
 };
 
+export const RequireLogistics = () => {
+  const auth = useAuth();
+  if (auth.status !== 'authenticated') return <RequireAuth />;
+  if (auth.user.role !== 'logistics') return <Navigate to="/" replace />;
+  return <Outlet />;
+};
+
+export const useIsLogistics = () => {
+  const auth = useAuth();
+  return auth.status === 'authenticated' && auth.user.role === 'logistics';
+};
+
 export const useIsAdmin = () => {
   const auth = useAuth();
   return auth.status === 'authenticated' && auth.user.role === 'admin';

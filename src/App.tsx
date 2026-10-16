@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/auth/AuthProvider';
-import { RedirectIfAuthenticated, RequireAdmin, RequireAuth } from '@/auth/RequireAuth';
+import { RedirectIfAuthenticated, RequireAdmin, RequireAuth, RequireLogistics } from '@/auth/RequireAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { FullPageSpinner, Spinner } from '@/components/ui/Spinner';
 
@@ -10,6 +10,7 @@ const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage').th
 const SuppliesPage = lazy(() => import('@/features/supplies/SuppliesPage').then((m) => ({ default: m.SuppliesPage })));
 const HistoryPage = lazy(() => import('@/features/requests/HistoryPage').then((m) => ({ default: m.HistoryPage })));
 const ApprovalsPage = lazy(() => import('@/features/approvals/ApprovalsPage').then((m) => ({ default: m.ApprovalsPage })));
+const DeliveriesPage = lazy(() => import('@/features/deliveries/DeliveriesPage').then((m) => ({ default: m.DeliveriesPage })));
 
 const PageFallback = () => (
   <div className="grid min-h-[50vh] place-items-center">
@@ -47,6 +48,9 @@ export const App = () => (
           <Route path="history" element={<Suspense fallback={<PageFallback />}><HistoryPage /></Suspense>} />
           <Route element={<RequireAdmin />}>
             <Route path="approvals" element={<Suspense fallback={<PageFallback />}><ApprovalsPage /></Suspense>} />
+          </Route>
+          <Route element={<RequireLogistics />}>
+            <Route path="deliveries" element={<Suspense fallback={<PageFallback />}><DeliveriesPage /></Suspense>} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Route>

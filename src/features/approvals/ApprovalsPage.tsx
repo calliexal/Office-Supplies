@@ -23,6 +23,7 @@ const TABS: Array<{ value: Tab; label: string; count?: keyof AdminRequestSummary
   { value: 'pending', label: 'Waiting Review', count: 'pending' },
   { value: 'approved', label: 'To Prepare', count: 'approved' },
   { value: 'ready_for_pickup', label: 'Ready For Pickup', count: 'readyForPickup' },
+  { value: 'in_delivery', label: 'On Delivery', count: 'inDelivery' },
   { value: 'finished', label: 'Finished', count: 'finished' },
   { value: 'rejected', label: 'Rejected', count: 'rejected' },
   { value: 'all', label: 'All', count: 'total' },
@@ -36,7 +37,8 @@ const SORT_OPTIONS: Array<{ value: RequestSort; label: string }> = [
 const EMPTY_COPY: Record<Tab, string> = {
   pending: 'All caught up — no requests are waiting for review.',
   approved: 'No approved requests to prepare.',
-  ready_for_pickup: 'Nothing is waiting to be picked up.',
+  ready_for_pickup: 'Nothing is waiting for office logistics.',
+  in_delivery: 'Nothing is on the way right now.',
   finished: 'No finished requests yet.',
   rejected: 'No rejected requests.',
   all: 'No requests have been submitted yet.',
@@ -48,7 +50,7 @@ const isSort = (value: string | null): value is RequestSort => value === 'oldest
 export const ApprovalsPage = () => {
   const [params, setParams] = useSearchParams();
   const tab: Tab = isTab(params.get('status')) ? (params.get('status') as Tab) : 'pending';
-  const defaultSort: RequestSort = tab === 'pending' || tab === 'approved' || tab === 'ready_for_pickup' ? 'oldest' : 'newest';
+  const defaultSort: RequestSort = tab === 'finished' || tab === 'rejected' || tab === 'all' ? 'newest' : 'oldest';
   const sort: RequestSort = isSort(params.get('sort')) ? (params.get('sort') as RequestSort) : defaultSort;
   const page = Math.max(1, Number(params.get('page')) || 1);
 

@@ -96,6 +96,12 @@ describe('mock API honours the contract', () => {
       expect(details.every((d) => d.requester.name === mockUsers[0]!.name)).toBe(true);
     });
 
+    it('refuses delivery actions to an employee', async () => {
+      await expect(api.deliveries.list({})).rejects.toMatchObject({ status: 403 });
+      const { data } = await api.requests.list({ status: 'ready_for_pickup' });
+      await expect(api.deliveries.markPickedUp(data[0]!.id)).rejects.toMatchObject({ status: 403 });
+    });
+
     it('refuses every review action to an employee with 403', async () => {
       const { data } = await api.requests.list({ status: 'pending' });
       await expect(api.admin.summary()).rejects.toMatchObject({ status: 403 });
@@ -129,7 +135,30 @@ describe('mock API honours the contract', () => {
       expect(approved).toMatchObject({ status: 'approved', reviewedBy: admin.name });
       expect(approved.reviewedAt).not.toBeNull();
       await api.admin.updateStatus({ id, status: 'ready_for_pickup' });
-      expect((await api.admin.updateStatus({ id, status: 'finished' })).status).toBe('finished');
+      await expect(api.admin.updateStatus({ id, status: 'finished' })).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('hands ready items to logistics, who deliver them until the employee confirms receipt', async () => {
+      const courier = mockUsers.find((u) => u.role === 'logistics')!;
+      const dinda = mockUsers.find((u) => u.email === 'dinda@example.com')!;
+      const { id } = (await api.admin.listRequests({ status: 'approved' })).data[0]!;
+      await api.admin.updateStatus({ id, status: 'ready_for_pickup' });
+      await expect(api.deliveries.markPickedUp(id)).resolves.toMatchObject({ status: 'in_delivery' });
+      await expect(api.deliveries.markPickedUp(id)).rejects.toMatchObject({ status: 409 });
+
+      await api.auth.login({ email: courier.email, password: MOCK_PASSWORD, remember: false });
+      const queue = await api.deliveries.list({ status: 'ready_for_pickup' });
+      expect(queue.data.every((r) => r.status === 'ready_for_pickup')).toBe(true);
+      expect((await api.notifications.list()).data.some((n) => n.kind === 'delivery_ready' && n.requestId === id)).toBe(true);
+      await expect(api.admin.summary()).rejects.toMatchObject({ status: 403 });
+
+      await api.auth.login({ email: dinda.email, password: MOCK_PASSWORD, remember: false });
+      const feed = await api.notifications.list();
+      expect(feed.data[0]).toMatchObject({ kind: 'request_in_delivery', requestId: id });
+      const done = await api.requests.confirmReceived(id);
+      expect(done.status).toBe('finished');
+      expect(done.receivedAt).not.toBeNull();
+      await expect(api.requests.confirmReceived(id)).rejects.toMatchObject({ status: 409 });
     });
 
     it('refuses a stale or skipped transition with 409', async () => {
@@ -188,7 +217,7 @@ describe('mock API honours the contract', () => {
 
     it('counts the whole organisation', async () => {
       const summary = await api.admin.summary();
-      const statuses = summary.pending + summary.approved + summary.readyForPickup + summary.rejected + summary.finished;
+      const statuses = summary.pending + summary.approved + summary.readyForPickup + summary.inDelivery + summary.rejected + summary.finished;
       expect(statuses).toBe(summary.total);
       expect(summary.pending).toBeGreaterThan(1);
     });

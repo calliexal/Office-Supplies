@@ -31,6 +31,11 @@ export type AtkApi = {
     list: (query: RequestQuery, opts?: Opts) => Promise<RequestPage>;
     get: (id: string, opts?: Opts) => Promise<RequestDetail>;
     create: (input: CreateRequestInput) => Promise<RequestDetail>;
+    confirmReceived: (id: string) => Promise<RequestDetail>;
+  };
+  deliveries: {
+    list: (query: AdminRequestQuery, opts?: Opts) => Promise<AdminRequestPage>;
+    markPickedUp: (id: string) => Promise<RequestDetail>;
   };
   admin: {
     summary: (opts?: Opts) => Promise<AdminRequestSummary>;

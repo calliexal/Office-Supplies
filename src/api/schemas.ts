@@ -4,6 +4,7 @@ export const REQUEST_STATUSES = [
   'pending',
   'approved',
   'ready_for_pickup',
+  'in_delivery',
   'rejected',
   'finished',
 ] as const;
@@ -11,7 +12,7 @@ export const REQUEST_STATUSES = [
 export const requestStatusSchema = z.enum(REQUEST_STATUSES);
 export type RequestStatus = z.infer<typeof requestStatusSchema>;
 
-export const USER_ROLES = ['employee', 'admin'] as const;
+export const USER_ROLES = ['employee', 'admin', 'logistics'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const userSchema = z.object({
@@ -75,6 +76,9 @@ export const requestDetailSchema = requestListItemSchema.extend({
   note: z.string().nullable().default(null),
   reviewedAt: z.string().datetime({ offset: true }).nullable().default(null),
   reviewedBy: z.string().nullable().default(null),
+  pickedUpBy: z.string().nullable().default(null),
+  pickedUpAt: z.string().datetime({ offset: true }).nullable().default(null),
+  receivedAt: z.string().datetime({ offset: true }).nullable().default(null),
 });
 export type RequestDetail = z.infer<typeof requestDetailSchema>;
 
@@ -99,12 +103,20 @@ export const adminRequestSummarySchema = z.object({
   pending: count,
   approved: count,
   readyForPickup: count,
+  inDelivery: count,
   rejected: count,
   finished: count,
 });
 export type AdminRequestSummary = z.infer<typeof adminRequestSummarySchema>;
 
-export const NOTIFICATION_KINDS = ['request_submitted', 'request_approved', 'request_rejected', 'request_ready'] as const;
+export const NOTIFICATION_KINDS = [
+  'request_submitted',
+  'request_approved',
+  'request_rejected',
+  'request_ready',
+  'request_in_delivery',
+  'delivery_ready',
+] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export const notificationSchema = z.object({
@@ -164,5 +176,5 @@ export const REQUEST_NOTE_MAX = 500;
 
 export type AdminRequestQuery = RequestQuery;
 
-export type ReviewStatus = Exclude<RequestStatus, 'pending'>;
+export type ReviewStatus = Exclude<RequestStatus, 'pending' | 'in_delivery'>;
 export type UpdateRequestStatusInput = { id: string; status: ReviewStatus; reason?: string };

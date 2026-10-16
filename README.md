@@ -1,10 +1,10 @@
 # Office Supplies Request
 
-A full-stack web app for requesting office supplies inside a company. Employees browse the catalogue and submit requests; the General Affair team reviews them in an approval queue; both sides get real-time notifications at every step.
+A full-stack web app for requesting office supplies inside a company. Employees browse the catalogue and submit requests; the General Affair team reviews and prepares them; office logistics delivers them; the employee confirms receipt. Everyone involved gets a real-time notification at every step.
 
 ![Employee dashboard](docs/screenshots/dashboard.png)
 
-**Tech stack:** React 18 Â· TypeScript (strict) Â· Vite Â· Tailwind CSS Â· TanStack Query Â· React Router Â· Zod Â· Supabase (PostgreSQL, Row Level Security, RPC, Auth, Realtime) Â· Vitest Â· PGlite
+**Tech stack:** React 18 · TypeScript (strict) · Vite · Tailwind CSS · TanStack Query · React Router · Zod · Supabase (PostgreSQL, Row Level Security, RPC, Auth, Realtime) · Vitest · PGlite
 
 ## Features
 
@@ -12,13 +12,18 @@ A full-stack web app for requesting office supplies inside a company. Employees 
 - Browse the supplies catalogue with live stock, search and in-stock filter
 - Build a request with several items at once and an optional note for General Affair; stock is reserved the moment it is submitted
 - Track every request in a filterable history (status, date range, search)
-- Get notified when a request is approved, rejected (with the reason) or ready for pickup
+- Get notified when a request is approved, rejected (with the reason), ready, or on its way
+- Tap **Confirm Received** when the items arrive, which finishes the request
 
 **For General Affair (admin)**
 - Approval queue for every employee's requests, oldest first, with live counters
 - Organisation-wide request history and dashboard, searchable by employee name
-- Approve, reject with a required reason (stock is returned automatically), mark ready for pickup, mark handed over
+- Approve, reject with a required reason (stock is returned automatically), and mark items ready for pickup, which hands them to office logistics
 - Notified instantly when a new request comes in; pending count shown in the sidebar and on the dashboard
+
+**For office logistics**
+- Deliveries queue of prepared requests, with who asked and what to bring
+- Notified when General Affair marks a request ready; **Mark as Picked Up** tells the employee it is on the way
 
 | Catalogue & request summary | Approval queue |
 | --- | --- |
@@ -27,6 +32,8 @@ A full-stack web app for requesting office supplies inside a company. Employees 
 | ![Review dialog](docs/screenshots/review.png) | ![Notifications](docs/screenshots/notifications.png) |
 | **Request history** | **Login** |
 | ![Request history](docs/screenshots/history.png) | ![Login page](docs/screenshots/login.png) |
+| **Office logistics deliveries** | **Employee confirms receipt** |
+| ![Deliveries queue](docs/screenshots/deliveries.png) | ![Confirm received](docs/screenshots/confirm-received.png) |
 
 <p align="center"><img src="docs/screenshots/mobile.png" alt="Mobile layout" width="280" /></p>
 
@@ -53,19 +60,25 @@ sequenceDiagram
   actor E as Employee
   participant DB as PostgreSQL
   actor GA as General Affair
-  E->>DB: create_supply_request(items, idempotency key)
+  actor L as Office logistics
+  E->>DB: create_supply_request(items, idempotency key, note)
   DB->>DB: lock stock rows, check, reserve, number REQ-YYYYMMDD-NNN
   DB-->>GA: notification "New request" (Realtime)
   GA->>DB: update_supply_request_status(approved / rejected + reason)
-  DB->>DB: check role and transition, return stock if rejected
-  DB-->>E: notification "Approved" / "Rejected: reason" (Realtime)
+  DB-->>E: notification "Approved" / "Rejected: reason"
+  GA->>DB: update_supply_request_status(ready_for_pickup)
+  DB-->>L: notification "Ready to deliver"
+  L->>DB: mark_request_picked_up()
+  DB-->>E: notification "On the way"
+  E->>DB: confirm_request_received()
+  DB->>DB: status finished
 ```
 
 Request lifecycle:
 
 ```
-pending â”€â”€approveâ”€â”€â–¶ approved â”€â”€prepareâ”€â”€â–¶ ready_for_pickup â”€â”€hand overâ”€â”€â–¶ finished
-   â””â”€â”€â”€â”€â”€â”€reject (reason required, stock returned)â”€â”€â”€â”€â”€â”€â–¶ rejected
+pending ──approve──▶ approved ──prepare──▶ ready_for_pickup ──logistics picks up──▶ in_delivery ──employee confirms──▶ finished
+   └──────reject (reason required, stock returned)──────▶ rejected
 ```
 
 ## Engineering highlights
@@ -82,8 +95,8 @@ pending â”€â”€approveâ”€â”€â–¶ approved â”€â”€
 
 | Command | What it covers |
 | --- | --- |
-| `npm test` | 37 Vitest tests: cart rules, API contract, role rules, notifications, date formatting, error mapping |
-| `npm run test:db` | 31 database tests: the real migrations run on in-memory PostgreSQL (PGlite) to check RLS isolation, anonymous lockout, stock reservation and rollback, idempotency, the status lifecycle, the approval race and notifications |
+| `npm test` | 40 Vitest tests: cart rules, API contract, role rules, delivery flow, notifications, date formatting, error mapping |
+| `npm run test:db` | 35 database tests: the real migrations run on in-memory PostgreSQL (PGlite) to check RLS isolation per role, anonymous lockout, stock reservation and rollback, idempotency, the status lifecycle, the approval race, delivery by logistics and notifications |
 | `npm run typecheck` | TypeScript in strict mode |
 
 ## Run it locally
@@ -102,6 +115,7 @@ cp .env.example .env
 | Employee | `dinda@example.com` | `Atk#2026` |
 | Employee | `budi@example.com` | `Atk#2026` |
 | General Affair | `admin@example.com` | `Atk#2026` |
+| Office logistics | `logistics@example.com` | `Atk#2026` |
 
 These accounts exist only in demo mode.
 
@@ -125,7 +139,7 @@ src/
   api/            Zod schemas, Supabase / mock / HTTP adapters, React Query hooks
   auth/           session handling, route guards (employee / admin)
   components/     layout (sidebar, header, notifications) and UI primitives
-  features/       auth Â· dashboard Â· supplies Â· requests Â· approvals
+  features/       auth · dashboard · supplies · requests · approvals
   lib/            date formatting (Asia/Jakarta), helpers
 ```
 

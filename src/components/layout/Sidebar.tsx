@@ -1,40 +1,50 @@
-import { ClipboardCheck, Clock, FilePlus2, LayoutGrid, LogOut, type LucideIcon } from 'lucide-react';
+import { ClipboardCheck, Clock, FilePlus2, LayoutGrid, LogOut, Truck, type LucideIcon } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
-import { useAdminSummary } from '@/api/queries';
-import { useIsAdmin } from '@/auth/RequireAuth';
+import type { UserRole } from '@/api';
+import { useAdminSummary, useDeliveries } from '@/api/queries';
+import { useAuth } from '@/auth/AuthProvider';
 import { cn } from '@/lib/cn';
 import { Logo } from './Logo';
 
-type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean; adminOnly?: boolean };
+type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean; onlyFor?: UserRole; badgeLabel?: string };
 
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true },
   { to: '/supplies', label: 'Supplies Requests', icon: FilePlus2 },
   { to: '/history', label: 'Requests History', icon: Clock },
-  { to: '/approvals', label: 'Approvals', icon: ClipboardCheck, adminOnly: true },
+  { to: '/approvals', label: 'Approvals', icon: ClipboardCheck, onlyFor: 'admin', badgeLabel: 'waiting for review' },
+  { to: '/deliveries', label: 'Deliveries', icon: Truck, onlyFor: 'logistics', badgeLabel: 'ready to pick up' },
 ];
+
+const READY_QUERY = { status: 'ready_for_pickup', page: 1, pageSize: 1 } as const;
 
 type SidebarNavProps = { onNavigate?: () => void; onLogout: () => void };
 
 export const SidebarNav = ({ onNavigate, onLogout }: SidebarNavProps) => {
-  const isAdmin = useIsAdmin();
-  const adminSummary = useAdminSummary({ enabled: isAdmin });
-  const pending = adminSummary.data?.pending ?? 0;
+  const auth = useAuth();
+  const role = auth.status === 'authenticated' ? auth.user.role : null;
+  const adminSummary = useAdminSummary({ enabled: role === 'admin' });
+  const readyDeliveries = useDeliveries(READY_QUERY, { enabled: role === 'logistics' });
+  const badges: Partial<Record<UserRole, number>> = {
+    admin: adminSummary.data?.pending ?? 0,
+    logistics: readyDeliveries.data?.meta.total ?? 0,
+  };
 
   return (
     <div className="flex h-full flex-col pb-[52px] pl-[18px] pr-[18px] pt-[38px]">
       <Logo className="mx-auto" />
       <nav aria-label="Main" className="ml-1.5 mt-[46px] w-[212px] max-w-full">
         <ul className="flex flex-col gap-3">
-          {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map(({ to, label, icon: Icon, end, adminOnly }) => {
-            const badge = adminOnly && pending > 0 ? pending : null;
+          {NAV_ITEMS.filter((item) => !item.onlyFor || item.onlyFor === role).map(({ to, label, icon: Icon, end, onlyFor, badgeLabel }) => {
+            const count = onlyFor ? (badges[onlyFor] ?? 0) : 0;
+            const badge = count > 0 ? count : null;
             return (
               <li key={to}>
                 <NavLink
                   to={to}
                   end={end}
                   onClick={onNavigate}
-                  aria-label={badge ? `${label}, ${badge} waiting for review` : undefined}
+                  aria-label={badge ? `${label}, ${badge} ${badgeLabel ?? ''}`.trim() : undefined}
                   className={({ isActive }) =>
                     cn(
                       'flex h-[51px] items-center gap-[15px] whitespace-nowrap rounded-xl px-4 text-sm transition-colors',

@@ -35,7 +35,12 @@ const paginate = <T>(rows: T[], page = 1, pageSize = 20) => ({
   meta: { page, pageSize, total: rows.length },
 });
 
-const toDetail = ({ requesterId: _owner, ...detail }: MockRequest): RequestDetail => structuredClone(detail);
+const toDetail = ({ requesterId: _owner, pickedUpById: _courier, ...detail }: MockRequest): RequestDetail => structuredClone(detail);
+
+const DELIVERY_QUEUE: RequestStatus[] = ['ready_for_pickup', 'in_delivery'];
+
+const staleStatus = (status: RequestStatus) =>
+  new ApiError(409, 'INVALID_TRANSITION', `This request is already ${status.replace(/_/g, ' ')}. Refresh to see the latest status.`);
 
 const toListItem = ({ id, code, createdAt, itemCount, totalQuantity, pickupLocation, status }: MockRequest): RequestListItem => ({
   id,
@@ -99,16 +104,42 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
         ),
       );
 
-  const notifyRequester = (req: MockRequest, reviewerId: string) => {
-    if (reviewerId === req.requesterId) return;
-    if (req.status === 'approved') {
-      notify(req.requesterId, req, 'request_approved', `${req.code} approved`, 'General Affair approved your request. You will be notified when it is ready for pickup.');
-    } else if (req.status === 'rejected') {
+  const notifyStatusChange = (req: MockRequest, actorId: string) => {
+    const toRequester = actorId !== req.requesterId;
+    if (req.status === 'approved' && toRequester) {
+      notify(req.requesterId, req, 'request_approved', `${req.code} approved`, 'General Affair approved your request. You will be notified when it is ready.');
+    } else if (req.status === 'rejected' && toRequester) {
       notify(req.requesterId, req, 'request_rejected', `${req.code} rejected`, `Reason: ${req.rejectionReason ?? '-'}`);
     } else if (req.status === 'ready_for_pickup') {
-      notify(req.requesterId, req, 'request_ready', `${req.code} ready for pickup`, `Your items are ready. Collect them at ${req.pickupLocation}.`);
+      if (toRequester) {
+        notify(req.requesterId, req, 'request_ready', `${req.code} ready for pickup`, 'Your items are ready. Office logistics will pick them up and deliver them to you.');
+      }
+      mockUsers
+        .filter((user) => user.role === 'logistics' && user.id !== req.requesterId)
+        .forEach((courier) =>
+          notify(
+            courier.id,
+            req,
+            'delivery_ready',
+            `Ready to deliver: ${req.code}`,
+            `Pick up ${req.itemCount} ${req.itemCount === 1 ? 'item' : 'items'} for ${req.requester.name} at ${req.pickupLocation}.`,
+          ),
+        );
+    } else if (req.status === 'in_delivery' && req.pickedUpById !== req.requesterId) {
+      notify(
+        req.requesterId,
+        req,
+        'request_in_delivery',
+        `${req.code} on the way`,
+        `${req.pickedUpBy ?? 'Office logistics'} picked up your items and is bringing them to you. Tap "Confirm Received" when they arrive.`,
+      );
     }
   };
+
+  const canView = (user: User, req: MockRequest) =>
+    req.requesterId === user.id ||
+    user.role === 'admin' ||
+    (user.role === 'logistics' && (DELIVERY_QUEUE.includes(req.status) || req.pickedUpById === user.id));
 
   requests
     .filter((req) => req.status === 'pending')
@@ -216,7 +247,7 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
         return {
           total: mine.length,
           pending: countBy(mine, 'pending'),
-          approved: countBy(mine, 'approved', 'ready_for_pickup', 'finished'),
+          approved: countBy(mine, 'approved', 'ready_for_pickup', 'in_delivery', 'finished'),
           rejected: countBy(mine, 'rejected'),
         };
       },
@@ -229,9 +260,21 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
         await delay(opts?.signal);
         const user = currentUser();
         const found = findRequest(id);
-        if (found.requesterId !== user.id && user.role !== 'admin') {
+        if (!canView(user, found)) {
           throw new ApiError(403, 'FORBIDDEN', "You don't have access to this request.");
         }
+        return toDetail(found);
+      },
+      confirmReceived: async (id) => {
+        await delay();
+        const user = currentUser();
+        const found = findRequest(id);
+        if (found.requesterId !== user.id) throw new ApiError(404, 'NOT_FOUND', 'This request no longer exists.');
+        if (found.status !== 'in_delivery') {
+          throw new ApiError(409, 'INVALID_TRANSITION', `This request is ${found.status.replace(/_/g, ' ')}, so it can't be confirmed yet.`);
+        }
+        found.status = 'finished';
+        found.receivedAt = new Date().toISOString();
         return toDetail(found);
       },
       create: async ({ items, idempotencyKey, note }) => {
@@ -279,11 +322,42 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
           note: trimmedNote,
           reviewedAt: null,
           reviewedBy: null,
+          pickedUpById: null,
+          pickedUpBy: null,
+          pickedUpAt: null,
+          receivedAt: null,
         };
         requests.unshift(created);
         idempotency.set(`${user.id}:${idempotencyKey}`, created);
         notifyAdminsOfSubmission(created);
         return toDetail(created);
+      },
+    },
+
+    deliveries: {
+      list: async (query, opts) => {
+        await delay(opts?.signal);
+        const user = currentUser();
+        if (user.role !== 'logistics' && user.role !== 'admin') {
+          throw new ApiError(403, 'FORBIDDEN', 'Only office logistics can see deliveries.');
+        }
+        const rows = filterRequests(query, { ownerId: null, matchRequester: true }).filter((req) => canView(user, req));
+        return paginate(rows.map(toAdminListItem), query.page, query.pageSize);
+      },
+      markPickedUp: async (id) => {
+        await delay();
+        const user = currentUser();
+        if (user.role !== 'logistics' && user.role !== 'admin') {
+          throw new ApiError(403, 'FORBIDDEN', 'Only office logistics can confirm a pickup.');
+        }
+        const found = findRequest(id);
+        if (found.status !== 'ready_for_pickup') throw staleStatus(found.status);
+        found.status = 'in_delivery';
+        found.pickedUpById = user.id;
+        found.pickedUpBy = user.name;
+        found.pickedUpAt = new Date().toISOString();
+        notifyStatusChange(found, user.id);
+        return toDetail(found);
       },
     },
 
@@ -296,6 +370,7 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
           pending: countBy(requests, 'pending'),
           approved: countBy(requests, 'approved'),
           readyForPickup: countBy(requests, 'ready_for_pickup'),
+          inDelivery: countBy(requests, 'in_delivery'),
           rejected: countBy(requests, 'rejected'),
           finished: countBy(requests, 'finished'),
         };
@@ -309,13 +384,7 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
         await delay();
         const admin = requireAdmin();
         const found = findRequest(id);
-        if (!canTransition(found.status, status)) {
-          throw new ApiError(
-            409,
-            'INVALID_TRANSITION',
-            `This request is already ${found.status.replace(/_/g, ' ')}. Refresh to see the latest status.`,
-          );
-        }
+        if (!canTransition(found.status, status)) throw staleStatus(found.status);
         const trimmed = reason?.trim() ?? '';
         if (status === 'rejected') {
           if (!trimmed) throw new ApiError(422, 'VALIDATION_FAILED', 'Give a reason for the rejection.', { reason: 'Give a reason for the rejection.' });
@@ -329,9 +398,13 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
           found.rejectionReason = trimmed;
         }
         found.status = status;
-        found.reviewedAt = new Date().toISOString();
-        found.reviewedBy = admin.name;
-        notifyRequester(found, admin.id);
+        if (status === 'finished') {
+          found.receivedAt = new Date().toISOString();
+        } else {
+          found.reviewedAt = new Date().toISOString();
+          found.reviewedBy = admin.name;
+        }
+        notifyStatusChange(found, admin.id);
         return toDetail(found);
       },
     },

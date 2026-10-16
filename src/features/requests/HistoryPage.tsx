@@ -12,6 +12,8 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { STATUS_META } from '@/components/ui/StatusBadge';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { toDayKey } from '@/lib/format';
+import { canConfirmReceived } from '@/api/lifecycle';
+import { ConfirmReceivedAction } from './DeliveryActions';
 import { RequestDetailDialog } from './RequestDetailDialog';
 import { RequestsTable } from './RequestsTable';
 
@@ -90,6 +92,7 @@ export const HistoryPage = () => {
   }, [linkedRequest, setParams]);
 
   const isAdmin = useIsAdmin();
+  const [busy, setBusy] = useState(false);
   const requests = useRequestHistory(query, isAdmin ? 'everyone' : 'mine');
   const hasFilters = status !== 'all' || datePreset !== 'newest' || !!from || !!to || !!debouncedSearch;
 
@@ -191,7 +194,20 @@ export const HistoryPage = () => {
         )}
       </section>
 
-      <RequestDetailDialog requestId={detailId} onClose={() => setDetailId(null)} showRequester={isAdmin} />
+      <RequestDetailDialog
+        requestId={detailId}
+        onClose={() => setDetailId(null)}
+        showRequester={isAdmin}
+        busy={busy}
+        renderActions={
+          isAdmin
+            ? undefined
+            : (detail) =>
+                canConfirmReceived(detail.status) ? (
+                  <ConfirmReceivedAction key={detail.id} detail={detail} onBusyChange={setBusy} onDone={() => setDetailId(null)} />
+                ) : null
+        }
+      />
     </>
   );
 };

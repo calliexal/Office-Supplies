@@ -1,17 +1,20 @@
-import { ArrowRight, ClipboardCheck, Inbox, Plus } from 'lucide-react';
+import { ArrowRight, ClipboardCheck, Inbox, Plus, Truck } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAdminSummary, useRequestHistory, useRequestSummary } from '@/api/queries';
+import { useAdminSummary, useDeliveries, useRequestHistory, useRequestSummary } from '@/api/queries';
 import { figmaAssets } from '@/assets/figma';
 import { useCurrentUser } from '@/auth/AuthProvider';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { firstNameOf, pluralize } from '@/lib/format';
+import { canConfirmReceived } from '@/api/lifecycle';
+import { ConfirmReceivedAction } from '@/features/requests/DeliveryActions';
 import { RequestDetailDialog } from '@/features/requests/RequestDetailDialog';
 import { RequestsTable } from '@/features/requests/RequestsTable';
 import { AdminStatCards, StatCards } from './StatCards';
 
 const RECENT_QUERY = { sort: 'newest', page: 1, pageSize: 5 } as const;
+const READY_QUERY = { status: 'ready_for_pickup', page: 1, pageSize: 1 } as const;
 
 export const DashboardPage = () => {
   const user = useCurrentUser();
@@ -21,6 +24,8 @@ export const DashboardPage = () => {
   const [detailId, setDetailId] = useState<string | null>(null);
   const adminSummary = useAdminSummary({ enabled: isAdmin });
   const pendingReviews = isAdmin ? (adminSummary.data?.pending ?? 0) : 0;
+  const isLogistics = user.role === 'logistics';
+  const readyDeliveries = useDeliveries(READY_QUERY, { enabled: isLogistics }).data?.meta.total ?? 0;
 
   return (
     <>
@@ -58,6 +63,21 @@ export const DashboardPage = () => {
           </span>
           <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand">
             Review now <ArrowRight className="size-4" aria-hidden />
+          </span>
+        </Link>
+      )}
+
+      {readyDeliveries > 0 && (
+        <Link
+          to="/deliveries"
+          className="mt-[38px] flex items-center gap-4 rounded-md border-l-[10px] border-navy bg-white px-5 py-4 shadow-stat transition-colors hover:bg-sky"
+        >
+          <Truck className="size-7 shrink-0 text-navy" aria-hidden />
+          <span className="flex-1 font-display text-[15px] font-semibold text-black">
+            {pluralize(readyDeliveries, 'request is', 'requests are')} ready to pick up at General Affair
+          </span>
+          <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand">
+            Open deliveries <ArrowRight className="size-4" aria-hidden />
           </span>
         </Link>
       )}
@@ -111,7 +131,19 @@ export const DashboardPage = () => {
         )}
       </section>
 
-      <RequestDetailDialog requestId={detailId} onClose={() => setDetailId(null)} showRequester={isAdmin} />
+      <RequestDetailDialog
+        requestId={detailId}
+        onClose={() => setDetailId(null)}
+        showRequester={isAdmin}
+        renderActions={
+          isAdmin
+            ? undefined
+            : (detail) =>
+                canConfirmReceived(detail.status) ? (
+                  <ConfirmReceivedAction key={detail.id} detail={detail} onDone={() => setDetailId(null)} />
+                ) : null
+        }
+      />
     </>
   );
 };

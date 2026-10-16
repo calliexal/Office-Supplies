@@ -2,7 +2,7 @@ import type { AdminRequestSummary, RequestSummary } from '@/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
 
-type Tone = 'brand' | 'danger' | 'warning' | 'success' | 'violet';
+type Tone = 'brand' | 'danger' | 'warning' | 'success' | 'violet' | 'navy';
 type Stat<K extends string> = { key: K; label: string; tone: Tone };
 
 const TONES: Record<Tone, { bg: string; accent: string; text: string }> = {
@@ -11,6 +11,7 @@ const TONES: Record<Tone, { bg: string; accent: string; text: string }> = {
   warning: { bg: 'bg-warning-soft', accent: 'bg-warning', text: 'text-warning' },
   success: { bg: 'bg-success-soft', accent: 'bg-success', text: 'text-success' },
   violet: { bg: 'bg-violet-soft', accent: 'bg-violet', text: 'text-violet' },
+  navy: { bg: 'bg-sky', accent: 'bg-navy', text: 'text-navy' },
 };
 
 const MY_STATS: Array<Stat<keyof RequestSummary>> = [
@@ -24,7 +25,7 @@ const ADMIN_STATS: Array<Stat<keyof AdminRequestSummary>> = [
   { key: 'pending', label: 'Waiting Review', tone: 'warning' },
   { key: 'approved', label: 'To Prepare', tone: 'success' },
   { key: 'readyForPickup', label: 'Ready For Pickup', tone: 'violet' },
-  { key: 'rejected', label: 'Rejected', tone: 'danger' },
+  { key: 'inDelivery', label: 'On Delivery', tone: 'navy' },
 ];
 
 const Tiles = <K extends string>({ stats, values }: { stats: Array<Stat<K>>; values: Record<K, number> | undefined }) => (

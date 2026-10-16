@@ -7,6 +7,7 @@ import type {
   AdminRequestQuery,
   CreateRequestInput,
   NotificationFeed,
+  RequestDetail,
   RequestPage,
   RequestQuery,
   SupplyQuery,
@@ -22,6 +23,7 @@ export const queryKeys = {
   adminSummary: ['admin', 'summary'] as const,
   adminRequestList: (query: AdminRequestQuery) => ['admin', 'requests', query] as const,
   notifications: ['notifications'] as const,
+  deliveries: (query: AdminRequestQuery) => ['deliveries', query] as const,
 };
 
 const ADMIN_POLL_MS = 60_000;
@@ -42,6 +44,7 @@ export const useLiveNotifications = () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
         void queryClient.invalidateQueries({ queryKey: ['requests'] });
         void queryClient.invalidateQueries({ queryKey: ['admin'] });
+        void queryClient.invalidateQueries({ queryKey: ['deliveries'] });
         void queryClient.invalidateQueries({ queryKey: ['supplies'] });
       }),
     [queryClient],
@@ -142,24 +145,40 @@ export const useAdminRequests = (query: AdminRequestQuery) =>
     refetchInterval: ADMIN_POLL_MS,
   });
 
-export const useUpdateRequestStatus = () => {
+const useRequestChange = <TInput>(mutationFn: (input: TInput) => Promise<RequestDetail>, idOf: (input: TInput) => string) => {
   const queryClient = useQueryClient();
   const refreshEverything = () => {
-    void queryClient.invalidateQueries({ queryKey: ['admin'] });
-    void queryClient.invalidateQueries({ queryKey: ['requests'] });
-    void queryClient.invalidateQueries({ queryKey: ['supplies'] });
+    ['admin', 'requests', 'deliveries', 'supplies', 'notifications'].forEach((key) => {
+      void queryClient.invalidateQueries({ queryKey: [key] });
+    });
   };
   return useMutation({
-    mutationFn: (input: UpdateRequestStatusInput) => api.admin.updateStatus(input),
+    mutationFn,
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.requestDetail(updated.id), updated);
       refreshEverything();
     },
     onError: (error, input) => {
       if (isApiError(error) && (error.status === 409 || error.status === 404)) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.requestDetail(input.id) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.requestDetail(idOf(input)) });
         refreshEverything();
       }
     },
   });
 };
+
+export const useUpdateRequestStatus = () =>
+  useRequestChange((input: UpdateRequestStatusInput) => api.admin.updateStatus(input), (input) => input.id);
+
+export const useMarkPickedUp = () => useRequestChange((id: string) => api.deliveries.markPickedUp(id), (id) => id);
+
+export const useConfirmReceived = () => useRequestChange((id: string) => api.requests.confirmReceived(id), (id) => id);
+
+export const useDeliveries = (query: AdminRequestQuery, { enabled = true }: { enabled?: boolean } = {}) =>
+  useQuery({
+    queryKey: queryKeys.deliveries(query),
+    queryFn: ({ signal }) => api.deliveries.list(query, { signal }),
+    placeholderData: keepPreviousData,
+    refetchInterval: enabled ? ADMIN_POLL_MS : false,
+    enabled,
+  });
