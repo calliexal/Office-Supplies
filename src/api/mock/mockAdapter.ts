@@ -1,6 +1,7 @@
 import { toDayKey } from '@/lib/format';
 import { ApiError } from '../errors';
 import { canTransition, REJECTION_REASON_MAX } from '../lifecycle';
+import { REQUEST_NOTE_MAX } from '../schemas';
 import type {
   AdminRequestListItem,
   AppNotification,
@@ -92,7 +93,8 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
           req,
           'request_submitted',
           `New request ${req.code}`,
-          `${req.requester.name} requested ${req.itemCount} ${req.itemCount === 1 ? 'item' : 'items'} (${req.totalQuantity} qty). Waiting for your review.`,
+          `${req.requester.name} requested ${req.itemCount} ${req.itemCount === 1 ? 'item' : 'items'} (${req.totalQuantity} qty).` +
+            (req.note ? ` Note: "${req.note.slice(0, 200)}"` : ' Waiting for your review.'),
           at,
         ),
       );
@@ -232,11 +234,18 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
         }
         return toDetail(found);
       },
-      create: async ({ items, idempotencyKey }) => {
+      create: async ({ items, idempotencyKey, note }) => {
         await delay();
         const user = currentUser();
         const replay = idempotency.get(`${user.id}:${idempotencyKey}`);
         if (replay) return toDetail(replay);
+
+        const trimmedNote = note?.trim() || null;
+        if (trimmedNote && trimmedNote.length > REQUEST_NOTE_MAX) {
+          throw new ApiError(422, 'VALIDATION_FAILED', `Keep the note under ${REQUEST_NOTE_MAX} characters.`, {
+            note: `Keep the note under ${REQUEST_NOTE_MAX} characters.`,
+          });
+        }
 
         if (items.length === 0) throw new ApiError(422, 'VALIDATION_FAILED', 'Add at least one item.', { items: 'Add at least one item.' });
         const fields: Record<string, string> = {};
@@ -267,6 +276,7 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
           requesterId: user.id,
           items: resolved.map(({ supply, quantity }) => ({ supplyId: supply.id, name: supply.name, quantity })),
           rejectionReason: null,
+          note: trimmedNote,
           reviewedAt: null,
           reviewedBy: null,
         };

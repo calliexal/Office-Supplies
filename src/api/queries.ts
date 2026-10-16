@@ -3,9 +3,11 @@ import { useEffect } from 'react';
 import { isApiError } from './errors';
 import { api } from './index';
 import type {
+  AdminRequestPage,
   AdminRequestQuery,
   CreateRequestInput,
   NotificationFeed,
+  RequestPage,
   RequestQuery,
   SupplyQuery,
   UpdateRequestStatusInput,
@@ -91,6 +93,13 @@ export const useRequests = (query: RequestQuery) =>
   useQuery({
     queryKey: queryKeys.requestList(query),
     queryFn: ({ signal }) => api.requests.list(query, { signal }),
+    placeholderData: keepPreviousData,
+  });
+
+export const useRequestHistory = (query: RequestQuery, scope: 'mine' | 'everyone') =>
+  useQuery<RequestPage | AdminRequestPage>({
+    queryKey: scope === 'everyone' ? queryKeys.adminRequestList(query) : queryKeys.requestList(query),
+    queryFn: ({ signal }) => (scope === 'everyone' ? api.admin.listRequests(query, { signal }) : api.requests.list(query, { signal })),
     placeholderData: keepPreviousData,
   });
 

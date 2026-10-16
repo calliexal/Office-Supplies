@@ -31,7 +31,7 @@ const SUPPLY_COLUMNS = 'id, name, stock, unit, image_url';
 const REQUEST_LIST_COLUMNS = 'id, code, created_at, item_count, total_quantity, pickup_location, status';
 const ADMIN_REQUEST_LIST_COLUMNS = `${REQUEST_LIST_COLUMNS}, requester_name, requester_department`;
 const REQUEST_DETAIL_COLUMNS =
-  'id, code, created_at, status, pickup_location, rejection_reason, decided_at, ' +
+  'id, code, created_at, status, pickup_location, rejection_reason, note, decided_at, ' +
   'requester:profiles!supply_requests_requester_id_fkey(name, department), ' +
   'reviewer:profiles!supply_requests_decided_by_fkey(name), ' +
   'items:supply_request_items(supply_id, name, quantity)';
@@ -152,6 +152,7 @@ const requestDetailFromRow = z
     status: z.string(),
     pickup_location: z.string(),
     rejection_reason: z.string().nullable(),
+    note: z.string().nullable(),
     decided_at: z.string().nullable(),
     requester: z.object({ name: z.string(), department: z.string() }),
     reviewer: z.object({ name: z.string() }).nullable(),
@@ -172,6 +173,7 @@ const requestDetailFromRow = z
       requester: row.requester,
       items,
       rejectionReason: row.rejection_reason,
+      note: row.note,
       reviewedAt: row.decided_at,
       reviewedBy: row.reviewer?.name ?? null,
     };
@@ -360,11 +362,12 @@ export const createSupabaseApi = (): AtkApi => {
 
       get: (id, opts) => getRequest(id, opts?.signal),
 
-      create: async ({ items, idempotencyKey }) => {
+      create: async ({ items, idempotencyKey, note }) => {
         await requireUserId();
         const result = await sb().rpc('create_supply_request', {
           p_items: items.map(({ supplyId, quantity }) => ({ supply_id: supplyId, quantity })),
           p_idempotency_key: idempotencyKey,
+          p_note: note?.trim() || null,
         });
         const id = parseResponse(z.string().uuid(), dataOf(result), 'created request id');
         return getRequest(id);

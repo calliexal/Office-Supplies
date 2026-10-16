@@ -1,4 +1,6 @@
 import { Minus } from 'lucide-react';
+import { useId } from 'react';
+import { REQUEST_NOTE_MAX } from '@/api';
 import { PICKUP_LOCATION } from '@/config';
 import { pluralize } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -7,12 +9,16 @@ import type { CartLine } from './cart';
 type RequestSummaryCardProps = {
   lines: CartLine[];
   totalQuantity: number;
+  note: string;
+  onNoteChange: (note: string) => void;
   onRemove: (supplyId: string) => void;
   onSubmit: () => void;
 };
 
-export const RequestSummaryCard = ({ lines, totalQuantity, onRemove, onSubmit }: RequestSummaryCardProps) => {
+export const RequestSummaryCard = ({ lines, totalQuantity, note, onNoteChange, onRemove, onSubmit }: RequestSummaryCardProps) => {
   const isEmpty = lines.length === 0;
+  const noteId = useId();
+  const noteHintId = useId();
 
   return (
     <section aria-labelledby="summary-title" className="rounded-[10px] bg-white px-[14px] pb-7 pt-[23px]">
@@ -69,7 +75,26 @@ export const RequestSummaryCard = ({ lines, totalQuantity, onRemove, onSubmit }:
         </div>
       </dl>
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-4 px-[5px]">
+        <label htmlFor={noteId} className="text-xs font-medium text-ink-500">
+          Note for General Affair <span className="font-normal text-ink-400">(optional)</span>
+        </label>
+        <textarea
+          id={noteId}
+          value={note}
+          onChange={(event) => onNoteChange(event.target.value)}
+          maxLength={REQUEST_NOTE_MAX}
+          rows={3}
+          aria-describedby={noteHintId}
+          placeholder="e.g. For the Monday training"
+          className="mt-1 block w-full resize-y rounded-md border border-ink-400 px-2 py-1.5 text-xs text-ink placeholder:text-ink-400 focus:border-navy focus:outline-none focus:ring-2 focus:ring-navy/20"
+        />
+        <p id={noteHintId} className="mt-0.5 text-right text-[10px] text-ink-400">
+          {note.length}/{REQUEST_NOTE_MAX}
+        </p>
+      </div>
+
+      <div className="mt-4 flex justify-end">
         <button
           type="button"
           onClick={onSubmit}

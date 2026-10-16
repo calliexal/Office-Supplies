@@ -1,7 +1,7 @@
 import { ArrowRight, ClipboardCheck, Inbox, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAdminSummary, useRequests, useRequestSummary } from '@/api/queries';
+import { useAdminSummary, useRequestHistory, useRequestSummary } from '@/api/queries';
 import { figmaAssets } from '@/assets/figma';
 import { useCurrentUser } from '@/auth/AuthProvider';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -9,16 +9,16 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { firstNameOf, pluralize } from '@/lib/format';
 import { RequestDetailDialog } from '@/features/requests/RequestDetailDialog';
 import { RequestsTable } from '@/features/requests/RequestsTable';
-import { StatCards } from './StatCards';
+import { AdminStatCards, StatCards } from './StatCards';
 
 const RECENT_QUERY = { sort: 'newest', page: 1, pageSize: 5 } as const;
 
 export const DashboardPage = () => {
   const user = useCurrentUser();
-  const summary = useRequestSummary();
-  const recent = useRequests(RECENT_QUERY);
-  const [detailId, setDetailId] = useState<string | null>(null);
   const isAdmin = user.role === 'admin';
+  const summary = useRequestSummary();
+  const recent = useRequestHistory(RECENT_QUERY, isAdmin ? 'everyone' : 'mine');
+  const [detailId, setDetailId] = useState<string | null>(null);
   const adminSummary = useAdminSummary({ enabled: isAdmin });
   const pendingReviews = isAdmin ? (adminSummary.data?.pending ?? 0) : 0;
 
@@ -63,7 +63,17 @@ export const DashboardPage = () => {
       )}
 
       <div className="mt-[38px]">
-        {summary.isError ? <ErrorState error={summary.error} onRetry={() => void summary.refetch()} /> : <StatCards summary={summary.data} />}
+        {isAdmin ? (
+          adminSummary.isError ? (
+            <ErrorState error={adminSummary.error} onRetry={() => void adminSummary.refetch()} />
+          ) : (
+            <AdminStatCards summary={adminSummary.data} />
+          )
+        ) : summary.isError ? (
+          <ErrorState error={summary.error} onRetry={() => void summary.refetch()} />
+        ) : (
+          <StatCards summary={summary.data} />
+        )}
       </div>
 
       <section aria-labelledby="recent-title" className="mt-[37px] rounded-[10px] bg-white px-4 pb-10 pt-[29px] sm:px-[33px]">
@@ -79,24 +89,29 @@ export const DashboardPage = () => {
           <ErrorState error={recent.error} onRetry={() => void recent.refetch()} />
         ) : (
           <RequestsTable
-            caption="Your five most recent requests"
+            caption={isAdmin ? 'The five most recent requests from all employees' : 'Your five most recent requests'}
             rows={recent.data?.data}
             isLoading={recent.isPending}
             onOpenDetail={setDetailId}
+            showRequester={isAdmin}
             emptyState={
               <div className="flex flex-col items-center gap-3 py-10 text-center">
                 <Inbox className="size-8 text-ink-400" aria-hidden />
-                <p className="text-sm text-ink-500">You haven't submitted any requests yet.</p>
-                <Link to="/supplies" className="text-sm font-semibold text-brand hover:underline">
-                  Create your first request
-                </Link>
+                <p className="text-sm text-ink-500">
+                  {isAdmin ? 'No employee has submitted a request yet.' : "You haven't submitted any requests yet."}
+                </p>
+                {!isAdmin && (
+                  <Link to="/supplies" className="text-sm font-semibold text-brand hover:underline">
+                    Create your first request
+                  </Link>
+                )}
               </div>
             }
           />
         )}
       </section>
 
-      <RequestDetailDialog requestId={detailId} onClose={() => setDetailId(null)} />
+      <RequestDetailDialog requestId={detailId} onClose={() => setDetailId(null)} showRequester={isAdmin} />
     </>
   );
 };

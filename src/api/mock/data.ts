@@ -78,6 +78,7 @@ const detail = (
   status: RequestDetail['status'],
   items: RequestDetail['items'],
   rejectionReason: string | null = null,
+  note: string | null = null,
 ): MockRequest => {
   const requester = userById(requesterId);
   const reviewed = status !== 'pending';
@@ -94,13 +95,14 @@ const detail = (
     requesterId,
     items,
     rejectionReason,
+    note,
     reviewedAt: reviewed ? new Date(Date.parse(at(day)) + 3_600_000).toISOString() : null,
     reviewedBy: reviewed ? 'GA Admin' : null,
   };
 };
 
 export const createMockRequests = (): MockRequest[] => [
-  detail(26, 1, 'usr_budi', 'pending', [line('sup_7', 'Ballpoint Pen', 5), line('sup_8', 'F4 70gsm', 2)]),
+  detail(26, 1, 'usr_budi', 'pending', [line('sup_7', 'Ballpoint Pen', 5), line('sup_8', 'F4 70gsm', 2)], null, 'For printing the quarterly audit files.'),
   detail(25, 1, 'usr_dinda', 'approved', [line('sup_1', 'Gel Pen', 3), line('sup_4', 'A4 75gsm', 3)]),
   detail(24, 1, 'usr_dinda', 'ready_for_pickup', [line('sup_3', 'Standard Pen', 1), line('sup_1', 'Gel Pen', 1)]),
   detail(23, 1, 'usr_dinda', 'pending', [line('sup_4', 'A4 75gsm', 2)]),

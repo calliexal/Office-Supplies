@@ -72,6 +72,7 @@ export const requestDetailSchema = requestListItemSchema.extend({
     }),
   ),
   rejectionReason: z.string().nullable().default(null),
+  note: z.string().nullable().default(null),
   reviewedAt: z.string().datetime({ offset: true }).nullable().default(null),
   reviewedBy: z.string().nullable().default(null),
 });
@@ -156,7 +157,10 @@ export type RequestQuery = {
 export type CreateRequestInput = {
   items: Array<{ supplyId: string; quantity: number }>;
   idempotencyKey: string;
+  note?: string;
 };
+
+export const REQUEST_NOTE_MAX = 500;
 
 export type AdminRequestQuery = RequestQuery;
 

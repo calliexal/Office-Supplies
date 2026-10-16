@@ -82,6 +82,11 @@ export const RequestDetailDialog = ({ requestId, onClose, showRequester = false,
                     )}
                   </dl>
                 </Section>
+                {data.note && (
+                  <Section title="Note from Requester">
+                    <p className="whitespace-pre-line break-words rounded-lg bg-white px-3 py-2 text-sm text-ink-700">{data.note}</p>
+                  </Section>
+                )}
                 <Section title="Requested Item">
                   <div className="flex justify-between font-display text-[13px] font-medium text-ink-500">
                     <span>Items</span>

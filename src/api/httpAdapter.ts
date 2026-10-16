@@ -44,10 +44,10 @@ export const createHttpApi = (): AtkApi => ({
       request('/requests', { query: { ...query }, schema: requestPageSchema, signal: opts?.signal }),
     get: (id, opts) =>
       request(`/requests/${encodeURIComponent(id)}`, { schema: requestDetailSchema, signal: opts?.signal }),
-    create: ({ items, idempotencyKey }) =>
+    create: ({ items, idempotencyKey, note }) =>
       request('/requests', {
         method: 'POST',
-        body: { items },
+        body: { items, note: note?.trim() || null },
         headers: { 'Idempotency-Key': idempotencyKey },
         schema: requestDetailSchema,
       }),

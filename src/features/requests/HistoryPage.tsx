@@ -2,7 +2,8 @@ import { SearchX } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { REQUEST_STATUSES, type RequestQuery, type RequestStatus } from '@/api';
-import { useRequests } from '@/api/queries';
+import { useRequestHistory } from '@/api/queries';
+import { useIsAdmin } from '@/auth/RequireAuth';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Pagination } from '@/components/ui/Pagination';
@@ -88,7 +89,8 @@ export const HistoryPage = () => {
     );
   }, [linkedRequest, setParams]);
 
-  const requests = useRequests(query);
+  const isAdmin = useIsAdmin();
+  const requests = useRequestHistory(query, isAdmin ? 'everyone' : 'mine');
   const hasFilters = status !== 'all' || datePreset !== 'newest' || !!from || !!to || !!debouncedSearch;
 
   const clearAll = () => {
@@ -102,7 +104,7 @@ export const HistoryPage = () => {
 
       <div className="mt-[23px]">
         <SearchBar
-          label="Search requests by ID or item"
+          label={isAdmin ? 'Search by request ID, item or employee name' : 'Search requests by ID or item'}
           value={search}
           onChange={(value) => {
             setSearch(value);
@@ -149,27 +151,34 @@ export const HistoryPage = () => {
 
       <section aria-labelledby="list-title" className="mt-4 rounded-[10px] bg-white px-4 pb-10 pt-[29px] sm:px-[33px]">
         <h2 id="list-title" className="mb-10 font-display text-xl font-semibold text-navy sm:text-2xl">
-          Requests List
+          {isAdmin ? 'All Employee Requests' : 'Requests List'}
         </h2>
         {requests.isError && !requests.data ? (
           <ErrorState error={requests.error} onRetry={() => void requests.refetch()} />
         ) : (
           <>
             <RequestsTable
-              caption="All your office supply requests"
+              caption={isAdmin ? 'Office supply requests from all employees' : 'All your office supply requests'}
               rows={requests.data?.data}
               isLoading={requests.isPending}
               skeletonRows={PAGE_SIZE}
               onOpenDetail={setDetailId}
+              showRequester={isAdmin}
               emptyState={
                 <div className="flex flex-col items-center gap-3 py-12 text-center">
                   <SearchX className="size-8 text-ink-400" aria-hidden />
-                  <p className="text-sm text-ink-500">{hasFilters ? 'No requests match these filters.' : "You haven't submitted any requests yet."}</p>
+                  <p className="text-sm text-ink-500">
+                    {hasFilters
+                      ? 'No requests match these filters.'
+                      : isAdmin
+                        ? 'No employee has submitted a request yet.'
+                        : "You haven't submitted any requests yet."}
+                  </p>
                   {hasFilters ? (
                     <button type="button" onClick={clearAll} className="text-sm font-semibold text-brand hover:underline">
                       Clear all filters
                     </button>
-                  ) : (
+                  ) : isAdmin ? null : (
                     <Link to="/supplies" className="text-sm font-semibold text-brand hover:underline">
                       Create a request
                     </Link>
@@ -182,7 +191,7 @@ export const HistoryPage = () => {
         )}
       </section>
 
-      <RequestDetailDialog requestId={detailId} onClose={() => setDetailId(null)} />
+      <RequestDetailDialog requestId={detailId} onClose={() => setDetailId(null)} showRequester={isAdmin} />
     </>
   );
 };

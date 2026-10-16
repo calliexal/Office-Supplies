@@ -4,18 +4,19 @@ A full-stack web app for requesting office supplies inside a company. Employees 
 
 ![Employee dashboard](docs/screenshots/dashboard.png)
 
-**Tech stack:** React 18 · TypeScript (strict) · Vite · Tailwind CSS · TanStack Query · React Router · Zod · Supabase (PostgreSQL, Row Level Security, RPC, Auth, Realtime) · Vitest · PGlite
+**Tech stack:** React 18 Â· TypeScript (strict) Â· Vite Â· Tailwind CSS Â· TanStack Query Â· React Router Â· Zod Â· Supabase (PostgreSQL, Row Level Security, RPC, Auth, Realtime) Â· Vitest Â· PGlite
 
 ## Features
 
 **For employees**
 - Browse the supplies catalogue with live stock, search and in-stock filter
-- Build a request with several items at once; stock is reserved the moment it is submitted
+- Build a request with several items at once and an optional note for General Affair; stock is reserved the moment it is submitted
 - Track every request in a filterable history (status, date range, search)
 - Get notified when a request is approved, rejected (with the reason) or ready for pickup
 
 **For General Affair (admin)**
 - Approval queue for every employee's requests, oldest first, with live counters
+- Organisation-wide request history and dashboard, searchable by employee name
 - Approve, reject with a required reason (stock is returned automatically), mark ready for pickup, mark handed over
 - Notified instantly when a new request comes in; pending count shown in the sidebar and on the dashboard
 
@@ -63,8 +64,8 @@ sequenceDiagram
 Request lifecycle:
 
 ```
-pending ──approve──▶ approved ──prepare──▶ ready_for_pickup ──hand over──▶ finished
-   └──────reject (reason required, stock returned)──────▶ rejected
+pending â”€â”€approveâ”€â”€â–¶ approved â”€â”€prepareâ”€â”€â–¶ ready_for_pickup â”€â”€hand overâ”€â”€â–¶ finished
+   â””â”€â”€â”€â”€â”€â”€reject (reason required, stock returned)â”€â”€â”€â”€â”€â”€â–¶ rejected
 ```
 
 ## Engineering highlights
@@ -81,8 +82,8 @@ pending ──approve──▶ approved ──prepare──▶ ready_for_pickup 
 
 | Command | What it covers |
 | --- | --- |
-| `npm test` | 36 Vitest tests: cart rules, API contract, role rules, notifications, date formatting, error mapping |
-| `npm run test:db` | 28 database tests: the real migrations run on in-memory PostgreSQL (PGlite) to check RLS isolation, anonymous lockout, stock reservation and rollback, idempotency, the status lifecycle, the approval race and notifications |
+| `npm test` | 37 Vitest tests: cart rules, API contract, role rules, notifications, date formatting, error mapping |
+| `npm run test:db` | 31 database tests: the real migrations run on in-memory PostgreSQL (PGlite) to check RLS isolation, anonymous lockout, stock reservation and rollback, idempotency, the status lifecycle, the approval race and notifications |
 | `npm run typecheck` | TypeScript in strict mode |
 
 ## Run it locally
@@ -124,7 +125,7 @@ src/
   api/            Zod schemas, Supabase / mock / HTTP adapters, React Query hooks
   auth/           session handling, route guards (employee / admin)
   components/     layout (sidebar, header, notifications) and UI primitives
-  features/       auth · dashboard · supplies · requests · approvals
+  features/       auth Â· dashboard Â· supplies Â· requests Â· approvals
   lib/            date formatting (Asia/Jakarta), helpers
 ```
 

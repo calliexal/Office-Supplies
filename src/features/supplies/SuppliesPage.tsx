@@ -58,10 +58,11 @@ export const SuppliesPage = () => {
   const idempotencyKey = useRef<string | null>(null);
   const [isConfirmOpen, setConfirmOpen] = useState(false);
   const [created, setCreated] = useState<RequestDetail | null>(null);
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     idempotencyKey.current = null;
-  }, [cart.lines]);
+  }, [cart.lines, note]);
 
   const openConfirm = () => {
     idempotencyKey.current ??= crypto.randomUUID();
@@ -75,11 +76,13 @@ export const SuppliesPage = () => {
       {
         idempotencyKey: idempotencyKey.current,
         items: cart.lines.map(({ supplyId, quantity }) => ({ supplyId, quantity })),
+        note: note.trim() || undefined,
       },
       {
         onSuccess: (request) => {
           idempotencyKey.current = null;
           dispatch({ type: 'clear' });
+          setNote('');
           setConfirmOpen(false);
           setCreated(request);
         },
@@ -183,6 +186,8 @@ export const SuppliesPage = () => {
             <RequestSummaryCard
               lines={cart.lines}
               totalQuantity={totals.totalQuantity}
+              note={note}
+              onNoteChange={setNote}
               onRemove={(supplyId) => dispatch({ type: 'remove', supplyId })}
               onSubmit={openConfirm}
             />

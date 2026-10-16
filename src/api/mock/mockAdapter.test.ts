@@ -81,6 +81,15 @@ describe('mock API honours the contract', () => {
       expect(oldest.data[0]!.createdAt <= oldest.data.at(-1)!.createdAt).toBe(true);
     });
 
+    it('saves a trimmed note with the request and rejects one that is too long', async () => {
+      const pen = (await api.supplies.list({ search: 'Gel Pen' })).data[0]!;
+      const created = await api.requests.create({ idempotencyKey: 'k-note', items: [{ supplyId: pen.id, quantity: 1 }], note: '  For the Monday training ' });
+      expect((await api.requests.get(created.id)).note).toBe('For the Monday training');
+      await expect(
+        api.requests.create({ idempotencyKey: 'k-note-long', items: [{ supplyId: pen.id, quantity: 1 }], note: 'x'.repeat(501) }),
+      ).rejects.toMatchObject({ status: 422, fields: { note: expect.any(String) } });
+    });
+
     it('shows an employee only their own requests', async () => {
       const page = await api.requests.list({ pageSize: 100 });
       const details = await Promise.all(page.data.map((row) => api.requests.get(row.id)));
