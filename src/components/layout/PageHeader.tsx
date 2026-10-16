@@ -1,4 +1,3 @@
-import { MessageSquareText, type LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useCurrentUser } from '@/auth/AuthProvider';
 import { Avatar } from '@/components/ui/Avatar';
@@ -14,17 +13,6 @@ const useToday = () => {
   return today;
 };
 
-const HeaderIconButton = ({ icon: Icon, label, count }: { icon: LucideIcon; label: string; count: number }) => (
-  <button
-    type="button"
-    aria-label={count > 0 ? `${label}, ${count} unread` : label}
-    className="relative grid size-[46px] place-items-center rounded-lg bg-white text-navy shadow-icon transition-colors hover:bg-sky"
-  >
-    <Icon className="size-6" strokeWidth={1.75} aria-hidden />
-    {count > 0 && <span aria-hidden className="absolute right-[9px] top-[9px] size-[11px] rounded-full border-2 border-white bg-danger" />}
-  </button>
-);
-
 export const PageHeader = ({ title }: { title: string }) => {
   const user = useCurrentUser();
   const today = useToday();
@@ -38,7 +26,6 @@ export const PageHeader = ({ title }: { title: string }) => {
         </p>
       </div>
       <div className="flex items-center gap-4 sm:gap-[17px]">
-        <HeaderIconButton icon={MessageSquareText} label="Messages" count={user.unreadMessages} />
         <NotificationBell />
         <div className="ml-1 flex min-w-0 items-center gap-4">
           <Avatar name={user.name} />

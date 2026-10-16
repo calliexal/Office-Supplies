@@ -48,6 +48,19 @@ const Tiles = <K extends string>({ stats, values }: { stats: Array<Stat<K>>; val
   </ul>
 );
 
+export type DeliverySummary = { ready: number; onDelivery: number; delivered: number; all: number };
+
+const DELIVERY_STATS: Array<Stat<keyof DeliverySummary>> = [
+  { key: 'ready', label: 'Ready To Pick Up', tone: 'violet' },
+  { key: 'onDelivery', label: 'On Delivery', tone: 'navy' },
+  { key: 'delivered', label: 'Delivered', tone: 'success' },
+  { key: 'all', label: 'All Deliveries', tone: 'brand' },
+];
+
+export const DeliveryStatCards = ({ summary }: { summary: DeliverySummary | undefined }) => (
+  <Tiles stats={DELIVERY_STATS} values={summary} />
+);
+
 export const StatCards = ({ summary }: { summary: RequestSummary | undefined }) => <Tiles stats={MY_STATS} values={summary} />;
 
 export const AdminStatCards = ({ summary }: { summary: AdminRequestSummary | undefined }) => (

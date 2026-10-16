@@ -2,6 +2,8 @@
 
 A full-stack web app for requesting office supplies inside a company. Employees browse the catalogue and submit requests; the General Affair team reviews and prepares them; office logistics delivers them; the employee confirms receipt. Everyone involved gets a real-time notification at every step.
 
+**Live demo:** https://office-supplies-five.vercel.app
+
 ![Employee dashboard](docs/screenshots/dashboard.png)
 
 **Tech stack:** React 18 · TypeScript (strict) · Vite · Tailwind CSS · TanStack Query · React Router · Zod · Supabase (PostgreSQL, Row Level Security, RPC, Auth, Realtime) · Vitest · PGlite
@@ -83,7 +85,7 @@ pending ──approve──▶ approved ──prepare──▶ ready_for_pickup 
 
 ## Engineering highlights
 
-- **Security in the database, not the UI.** The browser only holds the publishable key. Row Level Security limits every read to the caller's own data (admins see everything), and all writes go through `SECURITY DEFINER` functions that validate input and check the role. An employee calling the API directly still can't approve a request, edit stock or read someone else's history.
+- **Security in the database, not the UI.** The browser only holds the publishable key. Row Level Security limits every read to the caller's own data (admins see everything, logistics see only requests waiting for delivery and the ones they delivered), and all writes go through `SECURITY DEFINER` functions that validate input and check the role. An employee calling the API directly still can't approve a request, edit stock or read someone else's history.
 - **No overselling under concurrency.** Submitting a request locks the stock rows in a fixed order (no deadlocks), checks every item, and reserves stock in one transaction. A second reviewer acting on a stale screen gets a `409` instead of a double decision.
 - **Idempotent submissions.** Each cart carries an idempotency key, so double clicks and network retries never create duplicate requests. Reusing a key with a different cart is rejected.
 - **Notifications that can't be faked.** Rows are written only by database triggers, read only by their recipient, and pushed live with Supabase Realtime (with a 30-second polling fallback).
@@ -122,8 +124,9 @@ These accounts exist only in demo mode.
 **With Supabase.**
 1. Create a project at [supabase.com](https://supabase.com).
 2. In the SQL Editor, run the whole of `supabase/setup.sql` once.
-3. Under Authentication, turn off public sign-up and add users. Promote a General Affair user:
+3. Under Authentication, turn off public sign-up and add users. Everyone starts as an employee; promote General Affair and office logistics users:
    `update public.profiles set role = 'admin' where email = '...';`
+   `update public.profiles set role = 'logistics' where email = '...';`
 4. In `.env`, set `VITE_USE_MOCK=false`, `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (never the secret key).
 
 More detail: [`supabase/README.md`](supabase/README.md) (schema, access matrix, error codes) and [`API_CONTRACT.md`](API_CONTRACT.md).
@@ -137,9 +140,9 @@ supabase/
   setup.sql       all migrations + seed, for one-shot setup
 src/
   api/            Zod schemas, Supabase / mock / HTTP adapters, React Query hooks
-  auth/           session handling, route guards (employee / admin)
+  auth/           session handling, route guards (employee / admin / logistics)
   components/     layout (sidebar, header, notifications) and UI primitives
-  features/       auth · dashboard · supplies · requests · approvals
+  features/       auth · dashboard · supplies · requests · approvals · deliveries
   lib/            date formatting (Asia/Jakarta), helpers
 ```
 

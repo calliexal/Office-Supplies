@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/auth/AuthProvider';
-import { RedirectIfAuthenticated, RequireAdmin, RequireAuth, RequireLogistics } from '@/auth/RequireAuth';
+import { RedirectIfAuthenticated, RequireAdmin, RequireAuth, RequireLogistics, RequireRequester } from '@/auth/RequireAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { FullPageSpinner, Spinner } from '@/components/ui/Spinner';
 
@@ -44,8 +44,10 @@ export const App = () => (
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<Suspense fallback={<PageFallback />}><DashboardPage /></Suspense>} />
-          <Route path="supplies" element={<Suspense fallback={<PageFallback />}><SuppliesPage /></Suspense>} />
-          <Route path="history" element={<Suspense fallback={<PageFallback />}><HistoryPage /></Suspense>} />
+          <Route element={<RequireRequester />}>
+            <Route path="supplies" element={<Suspense fallback={<PageFallback />}><SuppliesPage /></Suspense>} />
+            <Route path="history" element={<Suspense fallback={<PageFallback />}><HistoryPage /></Suspense>} />
+          </Route>
           <Route element={<RequireAdmin />}>
             <Route path="approvals" element={<Suspense fallback={<PageFallback />}><ApprovalsPage /></Suspense>} />
           </Route>

@@ -280,6 +280,7 @@ export const createMockApi = ({ latencyMs = 350, storage = safeStorage() }: Mock
       create: async ({ items, idempotencyKey, note }) => {
         await delay();
         const user = currentUser();
+        if (user.role === 'logistics') throw new ApiError(403, 'FORBIDDEN', 'Office logistics accounts cannot submit supply requests.');
         const replay = idempotency.get(`${user.id}:${idempotencyKey}`);
         if (replay) return toDetail(replay);
 

@@ -151,6 +151,10 @@ describe('mock API honours the contract', () => {
       expect(queue.data.every((r) => r.status === 'ready_for_pickup')).toBe(true);
       expect((await api.notifications.list()).data.some((n) => n.kind === 'delivery_ready' && n.requestId === id)).toBe(true);
       await expect(api.admin.summary()).rejects.toMatchObject({ status: 403 });
+      const anySupply = (await api.supplies.list({ page: 1, pageSize: 1 })).data[0]!;
+      await expect(
+        api.requests.create({ items: [{ supplyId: anySupply.id, quantity: 1 }], idempotencyKey: 'logistics-key-0001' }),
+      ).rejects.toMatchObject({ status: 403 });
 
       await api.auth.login({ email: dinda.email, password: MOCK_PASSWORD, remember: false });
       const feed = await api.notifications.list();

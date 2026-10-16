@@ -6,12 +6,20 @@ import { useAuth } from '@/auth/AuthProvider';
 import { cn } from '@/lib/cn';
 import { Logo } from './Logo';
 
-type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean; onlyFor?: UserRole; badgeLabel?: string };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+  onlyFor?: UserRole;
+  hiddenFor?: UserRole;
+  badgeLabel?: string;
+};
 
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true },
-  { to: '/supplies', label: 'Supplies Requests', icon: FilePlus2 },
-  { to: '/history', label: 'Requests History', icon: Clock },
+  { to: '/supplies', label: 'Supplies Requests', icon: FilePlus2, hiddenFor: 'logistics' },
+  { to: '/history', label: 'Requests History', icon: Clock, hiddenFor: 'logistics' },
   { to: '/approvals', label: 'Approvals', icon: ClipboardCheck, onlyFor: 'admin', badgeLabel: 'waiting for review' },
   { to: '/deliveries', label: 'Deliveries', icon: Truck, onlyFor: 'logistics', badgeLabel: 'ready to pick up' },
 ];
@@ -35,7 +43,7 @@ export const SidebarNav = ({ onNavigate, onLogout }: SidebarNavProps) => {
       <Logo className="mx-auto" />
       <nav aria-label="Main" className="ml-1.5 mt-[46px] w-[212px] max-w-full">
         <ul className="flex flex-col gap-3">
-          {NAV_ITEMS.filter((item) => !item.onlyFor || item.onlyFor === role).map(({ to, label, icon: Icon, end, onlyFor, badgeLabel }) => {
+          {NAV_ITEMS.filter((item) => (!item.onlyFor || item.onlyFor === role) && item.hiddenFor !== role).map(({ to, label, icon: Icon, end, onlyFor, badgeLabel }) => {
             const count = onlyFor ? (badges[onlyFor] ?? 0) : 0;
             const badge = count > 0 ? count : null;
             return (

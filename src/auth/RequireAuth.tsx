@@ -25,6 +25,13 @@ export const RequireLogistics = () => {
   return <Outlet />;
 };
 
+export const RequireRequester = () => {
+  const auth = useAuth();
+  if (auth.status !== 'authenticated') return <RequireAuth />;
+  if (auth.user.role === 'logistics') return <Navigate to="/deliveries" replace />;
+  return <Outlet />;
+};
+
 export const useIsLogistics = () => {
   const auth = useAuth();
   return auth.status === 'authenticated' && auth.user.role === 'logistics';
